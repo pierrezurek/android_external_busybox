@@ -45,6 +45,15 @@ $(busybox_prepare_full): $(BB_PATH)/busybox-full.config
 	@cat $^ > $@ && echo "CONFIG_CROSS_COMPILER_PREFIX=\"$(BUSYBOX_CROSS_COMPILER_PREFIX)\"" >> $@
 	+make -C $(BB_PATH) prepare O=$(@D)
 
+busybox_prepare_shared := $(bb_gen)/shared/.config
+$(busybox_prepare_shared): $(BB_PATH)/busybox-shared.config
+	@echo -e ${CL_YLW}"Prepare config for libbusybox (zpi)"${CL_RST}
+	@rm -rf $(bb_gen)/shared
+	@rm -f $(shell find $(abspath $(call intermediates-dir-for,SHARED_LIBRARIES,libbusybox)) -name "*.o")
+	@mkdir -p $(@D)
+	@cat $^ > $@ && echo "CONFIG_CROSS_COMPILER_PREFIX=\"$(BUSYBOX_CROSS_COMPILER_PREFIX)\"" >> $@
+	+make -C $(BB_PATH) prepare O=$(@D)
+
 busybox_prepare_minimal := $(bb_gen)/minimal/.config
 $(busybox_prepare_minimal): $(BB_PATH)/busybox-minimal.config
 	@echo -e ${CL_YLW}"Prepare config for libbusybox"${CL_RST}
@@ -135,6 +144,30 @@ LOCAL_MODULE_TAGS := eng debug
 LOCAL_STATIC_LIBRARIES := libcutils libc libm libselinux
 LOCAL_ADDITIONAL_DEPENDENCIES := $(busybox_prepare_minimal)
 include $(BUILD_STATIC_LIBRARY)
+
+# Build the shared lib for dynamic loading (zpi)
+include $(CLEAR_VARS)
+
+BUSYBOX_CONFIG:=shared
+BUSYBOX_SUFFIX:=shared
+LOCAL_SRC_FILES := $(BUSYBOX_SRC_FILES)
+LOCAL_C_INCLUDES := $(bb_gen)/shared/include $(BUSYBOX_C_INCLUDES)
+LOCAL_CFLAGS := -Dmain=busybox_driver $(BUSYBOX_CFLAGS)
+LOCAL_CFLAGS += \
+  -Dgetusershell=busybox_getusershell \
+  -Dsetusershell=busybox_setusershell \
+  -Dendusershell=busybox_endusershell \
+  -Dgetmntent=busybox_getmntent \
+  -Dgetmntent_r=busybox_getmntent_r \
+  -Dgenerate_uuid=busybox_generate_uuid
+LOCAL_ASFLAGS := $(BUSYBOX_AFLAGS)
+LOCAL_MODULE := libbusybox
+LOCAL_MODULE_TAGS := eng debug
+LOCAL_SHARED_LIBRARIES := libcutils libc libm libselinux
+LOCAL_STATIC_LIBRARIES := libclearsilverregex libuclibcrpc
+LOCAL_ADDITIONAL_DEPENDENCIES := $(busybox_prepare_shared)
+include $(BUILD_SHARED_LIBRARY)
+
 
 
 # Bionic Busybox /system/xbin
